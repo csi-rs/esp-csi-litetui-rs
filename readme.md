@@ -160,3 +160,21 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
     </td>
   </tr>
 </table>
+
+## Authors
+
+- Maryam Odat <mariam.odat97@gmail.com>
+- Abdullah Al-Awad <abdullahalawad123321@gmail.com>
+
+## Contributors
+
+<!-- Add future contributors here -->
+
+## Contributing
+
+Contributions are welcome! If you have ideas for new features, bug fixes, or improvements, please open an issue or submit a pull request.
+
+## License
+
+This project is licensed under the Apache License, Version 2.0. See the `LICENSE` file for more details.
+
