@@ -431,8 +431,8 @@ async fn main(spawner: Spawner) -> ! {
         if mode != 0 { break mode; }
         Timer::after(Duration::from_millis(100)).await;
     };
-
-    let client_config = ClientConfig::default().with_ssid("joverse".to_string()).with_password("welcome1".to_string()).with_auth_method(esp_radio::wifi::AuthMethod::Wpa2Personal);
+    // change ssid & password to the desired network for station
+    let client_config = ClientConfig::default().with_ssid("ssid".to_string()).with_password("password".to_string()).with_auth_method(esp_radio::wifi::AuthMethod::Wpa2Personal);
 
     let node_configuration = match chosen_mode {
         1 => Node::Central(CentralOpMode::WifiStation(WifiStationConfig { client_config })),
