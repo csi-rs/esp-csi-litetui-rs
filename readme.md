@@ -9,12 +9,12 @@
 <br>
 
 <!-- Displaying the Hardware and Interface side-by-side -->
-<img src="https://github.com/joverse962/Images/blob/main/coreS3.webp" alt="M5Stack CoreS3 SE Device" width="35%">
+<img src="https://github.com/joverse962/Images/blob/main/LiteTUI/coreS3.webp" alt="M5Stack CoreS3 SE Device" width="35%">
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-<img src="https://github.com/joverse962/Images/blob/main/welcome3.png" alt="Blind-Cam Hero View" width="35%">
+<img src="https://github.com/joverse962/Images/blob/main/LiteTUI/welcome3.png" alt="Blind-Cam Hero View" width="35%">
 
 <br><br>
-<video src="https://github.com/joverse962/Images/blob/main/amplitude.mov" autoplay loop muted playsinline></video>
+<video src="https://github.com/joverse962/Images/blob/main/LiteTUI/amplitude.mov" autoplay loop muted playsinline></video>
 
 ---
 </div>
@@ -28,7 +28,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
 ## 📖 Operational Manual & Interface Guide
 
 <br>
-<video src="https://github.com/joverse962/Images/blob/main/amplitude.mov" autoplay loop muted playsinline></video>
+<video src="https://github.com/joverse962/Images/blob/main/LiteTUI/amplitude.mov" autoplay loop muted playsinline></video>
 <table width="100%">
   <tr>
     <td width="65%" valign="top">
@@ -36,7 +36,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       <p>Upon powering up the CoreS3 SE, the system initiates the neon-styled retro TUI. Designed for high-visibility in field operations, the interface carries zero bloat. Tap <b>START VISUALIZING</b> to initialize the radio and memory allocation.</p>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/IMG_7949.jpg" alt="Welcome Screen" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/IMG_7949.jpg" alt="Welcome Screen" width="100%">
     </td>
   </tr>
 </table>
@@ -55,7 +55,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       </ul>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/IMG_7952.jpg" alt="Modes Screen" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/IMG_7952.jpg" alt="Modes Screen" width="100%">
     </td>
   </tr>
 </table>
@@ -69,7 +69,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       <p>Visualize the raw volume of data moving through the airwaves. This real-time graph maps amplitude across subcarriers, instantly highlighting network congestion, heavy data transfers, or high-bandwidth anomalies in your immediate vicinity.</p>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/amplitude.gif" alt="Amplitude View" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/amplitude.gif" alt="Amplitude View" width="100%">
     </td>
   </tr>
 </table>
@@ -83,7 +83,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       <p>Strip away the noise and look at the physical properties of the signal. By tracking the unwrapped phase offset, you can detect microscopic environmental shifts, physical movement within a room, and complex multipath fading effects.</p>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/phase.gif" alt="Phase View" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/phase.gif" alt="Phase View" width="100%">
     </td>
   </tr>
 </table>
@@ -97,7 +97,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       <p>A scrolling matrix mapping amplitude history over time into a density color-map. This view acts as a "heat map" for the air, allowing you to track fleeting signal bursts, frequency hopping, and persistent noise floors as they happen across the spectrum.</p>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/waterfall2.png" alt="Waterfall View" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/waterfall2.png" alt="Waterfall View" width="100%">
     </td>
   </tr>
 </table>
@@ -111,7 +111,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       <p>Track the aggregate power of your selected target. This graph plots signal strength (in dBm) over time. It utilizes an <i>Exponential Moving Average (EMA)</i> to smooth out erratic environmental spikes, providing a clear directional trend for tracking.</p>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/rssi2.png" alt="RSSI View" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/rssi2.png" alt="RSSI View" width="100%">
     </td>
   </tr>
 </table>
@@ -125,7 +125,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       <p>Don't lose your scan data. Before deployment, the TUI prompts you to initialize the onboard SD card. Capturing raw CSI data as CSV files allows you to extract the payload later for advanced filtering and machine-learning analysis on your main machine.</p>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/csv.jpg" alt="SD Card Save Prompt" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/csv.jpg" alt="SD Card Save Prompt" width="100%">
     </td>
   </tr>
 </table>
@@ -139,7 +139,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       <p>A built-in tactical manual. If you need a quick refresher on module definitions or the color-coded intensity spectrum (e.g., matching 'Dark Indigo' to 65% Intensity), the reference guide is instantly accessible without interrupting your workflow.</p>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/IMG_7958.jpg" alt="On-Device Manual" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/IMG_7958.jpg" alt="On-Device Manual" width="100%">
     </td>
   </tr>
 </table>
@@ -156,7 +156,7 @@ This lightweight terminal user interface (TUI) is strictly optimized for the **[
       </ul>
     </td>
     <td width="35%" align="center" valign="middle">
-      <img src="https://github.com/joverse962/Images/blob/main/names.jpg" alt="Credits Screen" width="100%">
+      <img src="https://github.com/joverse962/Images/blob/main/LiteTUI/names.jpg" alt="Credits Screen" width="100%">
     </td>
   </tr>
 </table>
