@@ -1,27 +1,22 @@
-# --- Rust Build Artifacts (HUGE folders) ---
+# Rust build output
 /target/
 **/*.rs.bk
 
-# --- ESP-IDF & Build Tools ---
-# These are downloaded tools and local build configurations
-/.embuild/
-/.esp-idf/
-/esp-idf/
+# Note: Cargo.lock is intentionally committed — this is a firmware binary and
+# we want reproducible builds.
 
-# --- ESP32 Configuration Files ---
-# sdkconfig is the generated config. We usually track 'sdkconfig.defaults' instead.
-sdkconfig
-sdkconfig.old
-sdkconfig.ci
+# Local tool caches
+/.cachebro/
 
-# --- Visual Studio Code & Editors ---
-.vscode/
-.idea/
+# Editor / OS noise
+/.vscode/
+/.idea/
 *.swp
 *.swo
+*~
 .DS_Store
 
-# --- Flash Artifacts ---
-# If you manually generated binaries
-*.bin
-*.elf
+# CSI captures pulled off the SD card (data, not source)
+/captures/
+*.BIN
+*.CSV
