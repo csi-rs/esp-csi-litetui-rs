@@ -27,15 +27,14 @@ import sys
 # RxCSIFmt variants in declaration order (the index postcard stores). The order
 # is load-bearing — it must match the upstream enum and `src/config.rs`'s
 # `fmt_label` table — so never reorder it.
-# esp-csi-rs 0.8.x layout: VhtBw20 plus two now-reserved slots were inserted
-# before Undefined, moving Undefined from index 13 to 16. Captures made with
-# 0.7.x firmware always stored index 13 (its Undefined), which this table
-# decodes as "VhtBw20" — treat that value as Undefined for old .BIN files.
+# This matches the current upstream enum: 15 variants, Undefined at 14. Older
+# firmware layouts placed Undefined at 13 (no VhtBw20) or at 16 (two extra
+# formats ahead of it), so .BIN files from those builds will decode this column
+# wrongly — check which firmware wrote a capture before trusting data_format.
 FMT = [
     "Bw20", "HtBw20", "HtBw20Stbc", "SecbBw20", "SecbHtBw20", "SecbHtBw20Stbc",
     "SecbHtBw40", "SecbHtBw40Stbc", "SecaBw20", "SecaHtBw20", "SecaHtBw20Stbc",
-    "SecaHtBw40", "SecaHtBw40Stbc", "VhtBw20", "Reserved14", "Reserved15",
-    "Undefined",
+    "SecaHtBw40", "SecaHtBw40Stbc", "VhtBw20", "Undefined",
 ]
 
 COLS = [

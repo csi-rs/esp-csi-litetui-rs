@@ -53,8 +53,8 @@ pub static SIG_MODE: AtomicU8 = AtomicU8::new(0);
 pub static RATE: AtomicU16 = AtomicU16::new(0);
 pub static SEQUENCE: AtomicU16 = AtomicU16::new(0);
 pub static CSI_LEN: AtomicU16 = AtomicU16::new(0);
-/// Last packet's `RxCSIFmt` discriminant (16 = Undefined; see `config::fmt_label`).
-pub static DATA_FORMAT: AtomicU8 = AtomicU8::new(16);
+/// Last packet's `RxCSIFmt` discriminant (14 = Undefined; see `config::fmt_label`).
+pub static DATA_FORMAT: AtomicU8 = AtomicU8::new(14);
 /// Total CSI packets observed by the drain task (monotonic).
 pub static PACKET_COUNT: AtomicUsize = AtomicUsize::new(0);
 

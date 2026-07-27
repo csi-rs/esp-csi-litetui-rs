@@ -263,11 +263,14 @@ pub fn ht40_label(v: u8) -> &'static str {
 /// `RxCSIFmt` variant names in declaration order (the discriminant postcard
 /// stores). Must stay aligned with esp-csi-rs and `tools/bin_to_csv.py`.
 ///
-/// Indices 14 and 15 are placeholders. They held two formats an out-of-tree
-/// fork inserted ahead of `Undefined`; the slots stay so the ordinals around
-/// them — and `.BIN` files written by earlier firmware — still line up.
+/// This mirrors the upstream enum exactly: 15 variants, `Undefined` at 14. An
+/// older layout carried two extra formats ahead of `Undefined`, pushing it to
+/// 16; `.BIN` files written by that firmware therefore store a different index
+/// for `Undefined` and are not decodable with this table. Matching the running
+/// firmware is the priority — keeping the old slots would mislabel every
+/// `Undefined` frame from current firmware as a placeholder.
 pub fn fmt_label(v: u8) -> &'static str {
-    const NAMES: [&str; 17] = [
+    const NAMES: [&str; 15] = [
         "Bw20",
         "HtBw20",
         "HtBw20Stbc",
@@ -282,8 +285,6 @@ pub fn fmt_label(v: u8) -> &'static str {
         "SecaHtBw40",
         "SecaHtBw40Stbc",
         "VhtBw20",
-        "Reserved14",
-        "Reserved15",
         "Undefined",
     ];
     NAMES.get(v as usize).copied().unwrap_or("?")
