@@ -34,7 +34,7 @@ pub fn spectrum(f: &mut Frame, area: Rect, m: &Model) {
             Axis::default()
                 .style(Style::default().fg(FRAME))
                 .bounds([0.0, NUM_SUBCARRIERS as f64])
-                .labels(alloc::vec![Span::raw("0"), Span::raw("32"), Span::raw("63")]),
+                .labels(alloc::vec![Span::raw("0"), Span::raw("64"), Span::raw("127")]),
         )
         .y_axis(
             Axis::default()
@@ -67,7 +67,7 @@ pub fn phase(f: &mut Frame, area: Rect, m: &Model) {
             Axis::default()
                 .style(Style::default().fg(FRAME))
                 .bounds([0.0, NUM_SUBCARRIERS as f64])
-                .labels(alloc::vec![Span::raw("0"), Span::raw("63")]),
+                .labels(alloc::vec![Span::raw("0"), Span::raw("127")]),
         )
         .y_axis(
             Axis::default()
@@ -179,6 +179,10 @@ pub fn stats(f: &mut Frame, area: Rect, m: &Model) {
     let rate_hz = esp_csi_rs::get_rx_rate_hz();
     let total = esp_csi_rs::get_total_rx_packets();
     let radio_drops = esp_csi_rs::get_dropped_packets_rx();
+    // TX side: the only sign of life in ESP-NOW Fast Source mode, which
+    // transmits the flood while all CSI is captured on the collector.
+    let tx_pps = esp_csi_rs::get_pps_tx();
+    let tx_total = esp_csi_rs::get_total_tx_packets();
     let ring_drops = shared::RING_DROPS.load(Ordering::Relaxed);
     let recs = shared::SD_RECORDS.load(Ordering::Relaxed);
 
@@ -204,9 +208,11 @@ pub fn stats(f: &mut Frame, area: Rect, m: &Model) {
         kv("radio drops: ", alloc::format!("{}", radio_drops)),
         kv("ring drops : ", alloc::format!("{}", ring_drops)),
         kv("logged recs: ", alloc::format!("{}", recs)),
+        kv("TX pps/tot : ", alloc::format!("{} / {}", tx_pps, tx_total)),
         Line::from(""),
         kv("phy / bw   : ", alloc::format!("{} / {}", phy, bw)),
         kv("mcs / rate : ", alloc::format!("{} / {}", m.mcs, m.rate)),
+        kv("format     : ", alloc::string::String::from(crate::config::fmt_label(m.fmt))),
         kv("noise floor: ", alloc::format!("{} dBm", m.noise)),
         kv("seq / len  : ", alloc::format!("{} / {}", m.seq, m.csi_len)),
     ];

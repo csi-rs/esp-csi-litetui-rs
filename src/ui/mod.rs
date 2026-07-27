@@ -66,6 +66,7 @@ pub struct Model {
     pub rate: u16,
     pub seq: u16,
     pub csi_len: u16,
+    pub fmt: u8,
     pub packets: usize,
     start_ms: u64,
     last_pkt: usize,
@@ -89,6 +90,7 @@ impl Model {
             rate: 0,
             seq: 0,
             csi_len: 0,
+            fmt: 16, // RxCSIFmt::Undefined
             packets: 0,
             start_ms: now_ms,
             last_pkt: 0,
@@ -116,6 +118,7 @@ impl Model {
         self.rate = shared::RATE.load(Ordering::Relaxed);
         self.seq = shared::SEQUENCE.load(Ordering::Relaxed);
         self.csi_len = shared::CSI_LEN.load(Ordering::Relaxed);
+        self.fmt = shared::DATA_FORMAT.load(Ordering::Relaxed);
         let pc = shared::PACKET_COUNT.load(Ordering::Relaxed);
         self.packets = pc;
 

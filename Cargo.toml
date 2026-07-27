@@ -7,9 +7,9 @@ license = "Apache-2.0"
 
 [dependencies]
 # --- CSI driver (pins the whole esp-* ecosystem below) ---
-esp-csi-rs = { version = "0.7.0", features = ["esp32s3", "statistics"] }
+esp-csi-rs = { version = "0.8.3", features = ["esp32s3", "statistics"] }
 
-# --- Core HAL / runtime / radio (versions matched to esp-csi-rs 0.7.0) ---
+# --- Core HAL / runtime / radio (versions matched to esp-csi-rs 0.8.3) ---
 esp-hal = { version = "1.1", features = ["esp32s3", "unstable"] }
 esp-rtos = { version = "0.3.0", features = ["embassy", "esp32s3", "esp-radio"] }
 esp-radio = { version = "0.18.0", default-features = false, features = [

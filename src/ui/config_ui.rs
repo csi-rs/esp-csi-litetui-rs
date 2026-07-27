@@ -23,17 +23,19 @@ enum Field {
     Channel,
     Traffic,
     Rate,
+    Ht40,
     Delivery,
     Format,
     Flag(u8, &'static str),
     Shift,
 }
 
-const FIELDS: [Field; 13] = [
+const FIELDS: [Field; 14] = [
     Field::Mode,
     Field::Channel,
     Field::Traffic,
     Field::Rate,
+    Field::Ht40,
     Field::Delivery,
     Field::Format,
     Field::Flag(config::CSI_LLTF, "L-LTF"),
@@ -56,6 +58,7 @@ impl ConfigUi {
         shared::CHANNEL.store(1, Ordering::Relaxed);
         shared::TRAFFIC_HZ.store(100, Ordering::Relaxed);
         shared::RATE_SEL.store(config::RATE_DEFAULT_IDX, Ordering::Relaxed);
+        shared::HT40_SEL.store(0, Ordering::Relaxed);
         shared::CSI_FLAGS.store(config::CSI_FLAGS_DEFAULT, Ordering::Relaxed);
         shared::CSI_SHIFT.store(0, Ordering::Relaxed);
         shared::DELIVERY.store(0, Ordering::Relaxed);
@@ -117,6 +120,11 @@ impl ConfigUi {
                 };
                 shared::RATE_SEL.store(next, Ordering::Relaxed);
             }
+            Field::Ht40 => {
+                let v = shared::HT40_SEL.load(Ordering::Relaxed);
+                let v = if inc { (v + 1).min(2) } else { v.saturating_sub(1) };
+                shared::HT40_SEL.store(v, Ordering::Relaxed);
+            }
             Field::Delivery => {
                 let v = shared::DELIVERY.load(Ordering::Relaxed);
                 shared::DELIVERY.store(if v == 0 { 1 } else { 0 }, Ordering::Relaxed);
@@ -150,6 +158,9 @@ impl ConfigUi {
             Field::Rate => alloc::string::String::from(config::rate_label(
                 shared::RATE_SEL.load(Ordering::Relaxed),
             )),
+            Field::Ht40 => alloc::string::String::from(config::ht40_label(
+                shared::HT40_SEL.load(Ordering::Relaxed),
+            )),
             Field::Delivery => alloc::string::String::from(
                 DeliveryMode::from_u8(shared::DELIVERY.load(Ordering::Relaxed)).label(),
             ),
@@ -170,6 +181,7 @@ impl ConfigUi {
             Field::Channel => "Channel",
             Field::Traffic => "Traffic",
             Field::Rate => "PHY rate",
+            Field::Ht40 => "HT40 sec",
             Field::Delivery => "Delivery",
             Field::Format => "Log format",
             Field::Flag(_, name) => name,

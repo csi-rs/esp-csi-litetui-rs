@@ -830,9 +830,9 @@ dependencies = [
 
 [[package]]
 name = "esp-csi-rs"
-version = "0.7.0"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f980f2dee93bf4bda9fcd5018f337747c49e2251a730e4b4438789d64fd19740"
+checksum = "840c1b039db26cdce3c70af6073c5ebfa6d876be680528a60d7d9155621e46df"
 dependencies = [
  "document-features",
  "embassy-executor",

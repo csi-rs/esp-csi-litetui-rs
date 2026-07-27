@@ -5,7 +5,7 @@
 ### A handheld Wi-Fi CSI scope for the M5Stack CoreS3 SE
 
 Real-time on-device Channel State Information (CSI) capture, scientific
-visualization, and SD-card logging — built in Rust on `esp-csi-rs 0.7`,
+visualization, and SD-card logging — built in Rust on `esp-csi-rs 0.8`,
 `esp-hal 1.1`, and `esp-radio 0.18`.
 
 </div>
@@ -23,17 +23,26 @@ format (or CSV) for off-line analysis.
 ## Features
 
 * **All `esp-csi-rs` node modes**, selectable on-device:
-  Wi-Fi **Station**, Wi-Fi **Sniffer**, **ESP-NOW Central**, **ESP-NOW Peripheral**.
+  Wi-Fi **Station**, Wi-Fi **Sniffer**, **ESP-NOW Central**, **ESP-NOW
+  Peripheral**, **ESP-NOW Fast Collector / Source** (one-to-one forced-PHY
+  simplex for maximum CSI packets/sec), and **AP collector** (self-contained
+  softAP + DHCP; an associating station generates the captured traffic).
+* **HT40 capture** for the ESP-NOW modes: pick the secondary channel
+  (Above/Below) on the setup screen for ~117–128 subcarriers instead of ~56.
+  2.4 GHz HT40 is experimental upstream — the channel 6 + Above pair works best;
+  confirm on-air via the CSI length on the Stats tab.
 * **Scientific instrument tabs** (real units/axes, no decorative chrome):
   1. **Spectrum** — amplitude vs subcarrier
   2. **Phase** — unwrapped phase (rad) vs subcarrier
   3. **Waterfall** — amplitude heatmap (time × subcarrier)
   4. **Signal** — RSSI and SNR (`rssi − noise_floor`) trend vs time
-  5. **Stats** — live `esp-csi-rs` statistics (PPS, RX rate, total, dropped) plus
-     last-packet metadata (PHY, BW, MCS, rate, noise floor, sequence, CSI length)
+  5. **Stats** — live `esp-csi-rs` statistics (RX/TX PPS, rate, total, dropped)
+     plus last-packet metadata (PHY, BW, MCS, rate, frame format classification,
+     noise floor, sequence, CSI length)
 * **On-device configuration** (touch): node mode, channel, traffic rate,
-  CSI sub-options (L-LTF / HT-LTF / STBC-HT-LTF2 / LTF-merge / channel-filter /
-  manual-scale + shift), delivery mode, and log format.
+  HT40 secondary channel, CSI sub-options (L-LTF / HT-LTF / STBC-HT-LTF2 /
+  LTF-merge / channel-filter / manual-scale + shift), delivery mode, and log
+  format.
 * **CSI delivery toggle** — `Async drain` (full SD logging) or inline
   `Callback` (lowest-latency live view).
 * **Proper SD logging** — the file is opened once per session and written
@@ -91,8 +100,9 @@ Set the log format on the setup screen.
   python3 tools/bin_to_csv.py CAPTURE.BIN        # -> CAPTURE.csv
   ```
 
-* **CSV (`CSInnnnn.CSV`).** Human-readable, one row per packet; the `csi` column
-  is a space-separated list of the raw CSI samples.
+* **CSV (`CSInnnnn.CSV`).** Human-readable, one row per packet; the `fmt` column
+  carries the `RxCSIFmt` frame classification and the `csi` column is a
+  space-separated list of the raw CSI samples.
 
 ## License
 
