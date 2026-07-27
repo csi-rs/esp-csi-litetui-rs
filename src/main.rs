@@ -45,12 +45,12 @@ use embedded_sdmmc::{SdCard, VolumeManager};
 
 use esp_csi_rs::logging::logging::{init_logger, LogMode};
 use esp_csi_rs::{
-    CSINode, CSINodeClient, CSINodeHardware, CentralOpMode, CollectionMode, EspNowConfig, Node,
-    PeripheralOpMode, WifiApConfig, WifiSnifferConfig, WifiStationConfig,
+    CSINode, CSINodeClient, CollectorMode, EmitterConfig, NodeHardware, NodeRole, WifiApConfig,
+    WifiSnifferConfig, WifiStationConfig,
 };
 use esp_radio::wifi::ap::AccessPointConfig;
 use esp_radio::wifi::sta::StationConfig;
-use esp_radio::wifi::{AuthenticationMethod, WifiController};
+use esp_radio::wifi::{AuthenticationMethod, Protocol, WifiController};
 
 use {esp_backtrace as _, esp_println as _};
 
@@ -95,9 +95,6 @@ async fn main(spawner: Spawner) -> ! {
     let (wifi_controller, mut interfaces) =
         esp_radio::wifi::new(p.WIFI, radio_cfg).expect("Wi-Fi init failed");
     let controller = WIFI_CONTROLLER.init(wifi_controller);
-    // Take over ESP-NOW's heap-allocating receive dispatcher immediately so
-    // overheard frames can't exhaust the heap before a capture starts.
-    esp_csi_rs::install_static_espnow_recv();
 
     // --- Spawn the UI / SD / touch engine on core 1 ---
     let mut cpu_control = CpuControl::new(p.CPU_CTRL);
@@ -126,10 +123,9 @@ async fn main(spawner: Spawner) -> ! {
     // between captures.
     wait_until_running().await;
 
-    let csi_hardware = CSINodeHardware::new(&mut interfaces, controller);
+    let csi_hardware = NodeHardware::new(&mut interfaces, controller);
     let mut node = CSINode::new(
-        node_kind(&Config::load()),
-        CollectionMode::Collector,
+        node_role(&Config::load()),
         Some(Config::load().csi_config()),
         Some(Config::load().traffic_hz),
         csi_hardware,
@@ -137,17 +133,17 @@ async fn main(spawner: Spawner) -> ! {
 
     loop {
         let cfg = Config::load();
-        node.set_op_mode(node_kind(&cfg));
-        node.set_collection_mode(cfg.mode.collection_mode());
+        node.set_role(node_role(&cfg));
+        // An emitter captures nothing, so there is no CSI to deliver.
+        node.set_csi_output_enabled(cfg.mode.captures_csi());
         // The node is reused across captures and `io_tasks` persists, so a
-        // TX-only fast-source run must not leave RX disabled for the next mode.
+        // TX-only emitter run must not leave RX disabled for the next mode.
         node.set_io_tasks(cfg.mode.io_tasks());
         node.set_csi_config(cfg.csi_config());
         node.set_traffic_frequency(cfg.traffic_hz);
-        node.set_protocol(cfg.mode.protocol(cfg.ht40.is_some()));
-        if cfg.mode.is_esp_now() {
-            node.set_rate(cfg.rate);
-        }
+        // Every mode here runs on N: HT40 capture needs an HT protocol, and an
+        // emitter pins its own HT set during bring-up (this is ignored there).
+        node.set_protocol(Protocol::N);
 
         // Select the CSI delivery path. Re-applied each run because `run()`'s
         // teardown resets the delivery gates back to Off.
@@ -189,52 +185,39 @@ async fn wait_until_running() {
     }
 }
 
-/// Build the esp-csi-rs node topology for the selected mode.
-fn node_kind(cfg: &Config) -> Node {
+/// Build the esp-csi-rs node role for the selected mode.
+fn node_role(cfg: &Config) -> NodeRole {
     match cfg.mode {
-        NodeMode::Station => Node::Central(CentralOpMode::WifiStation(WifiStationConfig::new(
+        NodeMode::Station => NodeRole::Collector(CollectorMode::Station(WifiStationConfig::new(
             StationConfig::default()
                 .with_ssid(config::WIFI_SSID)
                 .with_password(config::WIFI_PASSWORD.to_string())
                 .with_auth_method(AuthenticationMethod::Wpa2Personal),
         ))),
-        NodeMode::Sniffer => Node::Peripheral(PeripheralOpMode::WifiSniffer(
+        NodeMode::Sniffer => NodeRole::Collector(CollectorMode::Sniffer(
             WifiSnifferConfig::default().with_channel(cfg.channel),
         )),
-        NodeMode::EspNowCentral => Node::Central(CentralOpMode::EspNow(esp_now_cfg(cfg, false))),
-        NodeMode::EspNowPeripheral => {
-            Node::Peripheral(PeripheralOpMode::EspNow(esp_now_cfg(cfg, false)))
-        }
-        NodeMode::EspNowFastCollector => {
-            Node::Central(CentralOpMode::EspNowFastCollector(esp_now_cfg(cfg, true)))
-        }
-        NodeMode::EspNowFastSource => {
-            Node::Peripheral(PeripheralOpMode::EspNowFastSource(esp_now_cfg(cfg, true)))
-        }
-        NodeMode::AccessPoint => Node::Central(CentralOpMode::WifiAccessPoint(WifiApConfig::new(
-            AccessPointConfig::default()
-                .with_ssid(config::AP_SSID)
-                .with_channel(cfg.channel),
-            cfg.channel,
-            None,
-        ))),
+        NodeMode::AccessPoint => NodeRole::Collector(CollectorMode::AccessPoint(
+            WifiApConfig::new(
+                AccessPointConfig::default()
+                    .with_ssid(config::AP_SSID)
+                    .with_channel(cfg.channel),
+                cfg.channel,
+                cfg.ht40,
+            ),
+        )),
+        // Both emitter modes share one config; only the bandwidth differs.
+        NodeMode::Ht20Emitter | NodeMode::Ht40Emitter => NodeRole::Emitter(emitter_cfg(cfg)),
     }
 }
 
-/// ESP-NOW config for the selected channel / HT40 setting. `fast` picks the
-/// MCS7 forced-PHY base used by the fast simplex modes. HT40 off must omit
-/// `with_ht40` entirely — `SecondaryChannel::None` still flags the node HT40.
-fn esp_now_cfg(cfg: &Config, fast: bool) -> EspNowConfig {
-    let base = if fast {
-        EspNowConfig::fast_default()
-    } else {
-        EspNowConfig::default()
-    };
-    let base = base.with_channel(cfg.channel);
-    match cfg.ht40 {
-        Some(sec) => base.with_ht40(sec),
-        None => base,
-    }
+/// Emitter config for the selected channel / bandwidth / injection rate.
+///
+/// The traffic-frequency field doubles as the emitter's injection rate, so the
+/// setup screen's `Traffic` steps map straight onto the inject period.
+fn emitter_cfg(cfg: &Config) -> EmitterConfig {
+    EmitterConfig::new(cfg.channel, cfg.mode.emitter_bandwidth(cfg.ht40))
+        .with_period(Duration::from_hz(cfg.traffic_hz.max(1) as u64))
 }
 
 /// Core-1 entry point: hardware bring-up + the blocking UI / SD loop.

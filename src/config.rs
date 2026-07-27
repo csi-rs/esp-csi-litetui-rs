@@ -1,12 +1,11 @@
 //! Capture configuration: compile-time constants, on-device runtime options,
 //! and the mapping from the UI's control atomics onto esp-csi-rs config types.
 
-use core::sync::atomic::Ordering;
+use core::sync::atomic::{AtomicBool, Ordering};
 
 use esp_csi_rs::config::CsiConfig;
-use esp_csi_rs::{CollectionMode, IOTaskConfig};
-use esp_radio::esp_now::WifiPhyRate;
-use esp_radio::wifi::{Protocol, SecondaryChannel};
+use esp_csi_rs::{HtBandwidth, IOTaskConfig};
+use esp_radio::wifi::SecondaryChannel;
 
 use crate::shared;
 
@@ -27,62 +26,39 @@ pub const AP_SSID: &str = "esp-csi-ap";
 pub const MIN_CHANNEL: u8 = 1;
 pub const MAX_CHANNEL: u8 = 13;
 
-/// Traffic-generation frequencies (Hz) the config UI steps through.
+/// Traffic-generation frequencies (Hz) the config UI steps through. Doubles as
+/// the emitter's injection rate (period = 1/Hz).
 /// The AP collector's ICMP flood benefits from kHz rates; 8000 is the crate's
-/// clamp ceiling and acts as "uncapped" for the fast-source flood.
+/// clamp ceiling and acts as "uncapped".
 pub const TRAFFIC_STEPS: [u16; 8] = [10, 50, 100, 500, 1000, 2000, 4000, 8000];
-
-/// Selectable ESP-NOW PHY rates (applied via `CSINode::set_rate`; only
-/// meaningful in the ESP-NOW modes — ignored for Station / Sniffer).
-pub const RATE_OPTIONS: [(WifiPhyRate, &str); 8] = [
-    (WifiPhyRate::Rate1mL, "1M"),
-    (WifiPhyRate::Rate6m, "6M"),
-    (WifiPhyRate::Rate24m, "24M"),
-    (WifiPhyRate::Rate54m, "54M"),
-    (WifiPhyRate::RateMcs0Lgi, "MCS0"),
-    (WifiPhyRate::RateMcs3Lgi, "MCS3"),
-    (WifiPhyRate::RateMcs5Lgi, "MCS5"),
-    (WifiPhyRate::RateMcs7Lgi, "MCS7"),
-];
-/// Default index into [`RATE_OPTIONS`] (`RateMcs0Lgi`).
-pub const RATE_DEFAULT_IDX: u8 = 4;
-
-/// Resolve a stored rate index to a [`WifiPhyRate`].
-pub fn rate_from_index(idx: u8) -> WifiPhyRate {
-    RATE_OPTIONS
-        .get(idx as usize)
-        .copied()
-        .unwrap_or(RATE_OPTIONS[RATE_DEFAULT_IDX as usize])
-        .0
-}
-
-/// Label for a stored rate index.
-pub fn rate_label(idx: u8) -> &'static str {
-    RATE_OPTIONS
-        .get(idx as usize)
-        .unwrap_or(&RATE_OPTIONS[RATE_DEFAULT_IDX as usize])
-        .1
-}
 
 // ---------------------------------------------------------------------------
 // Node mode
 // ---------------------------------------------------------------------------
 
+/// Selectable node mode.
+///
+/// The discriminants are persisted as a `u8` (NVS / SD-card config) and read
+/// back through [`NodeMode::from_u8`], so a value's meaning is permanent.
+/// **Discriminants 3, 4, 5 and 6 are retired** — they were the ESP-NOW modes
+/// (central, peripheral, fast collector, fast source) that esp-csi-rs dropped
+/// along with its ESP-NOW transport. They are never reused: `from_u8` rejects
+/// them so a config written by older firmware fails safe to the default mode
+/// instead of silently resolving to a different one. New variants therefore
+/// continue from 8.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     Station = 1,
     Sniffer = 2,
-    EspNowCentral = 3,
-    EspNowPeripheral = 4,
-    /// One-to-one ESP-NOW fast simplex, RX side: beacons until a source pairs,
-    /// then goes RX-only while the source floods (max CSI packets/sec).
-    EspNowFastCollector = 5,
-    /// One-to-one ESP-NOW fast simplex, TX side: learns the collector's MAC
-    /// from its beacon, then floods forced-PHY unicast. Produces no local CSI.
-    EspNowFastSource = 6,
     /// Self-contained softAP collector: AP + single-lease DHCP server; an
     /// associating station generates the traffic captured as CSI.
     AccessPoint = 7,
+    /// TX-only HT20 emitter: loop-injects raw sounding frames on a fixed
+    /// channel for a companion collector to measure. Captures no CSI.
+    Ht20Emitter = 8,
+    /// TX-only HT40 emitter: as [`Self::Ht20Emitter`] but 40 MHz wide, with the
+    /// secondary channel taken from the HT40 selector.
+    Ht40Emitter = 9,
 }
 
 impl NodeMode {
@@ -90,88 +66,107 @@ impl NodeMode {
         match v {
             1 => Some(Self::Station),
             2 => Some(Self::Sniffer),
-            3 => Some(Self::EspNowCentral),
-            4 => Some(Self::EspNowPeripheral),
-            5 => Some(Self::EspNowFastCollector),
-            6 => Some(Self::EspNowFastSource),
+            // 3..=6 are the retired ESP-NOW modes (see the type docs); they
+            // fall through to `None` so the caller falls back to the default.
             7 => Some(Self::AccessPoint),
+            8 => Some(Self::Ht20Emitter),
+            9 => Some(Self::Ht40Emitter),
             _ => None,
         }
     }
 
+    /// Short display string. Kept within the width budget of the fixed-layout
+    /// setup screen and live status bar.
     pub fn label(self) -> &'static str {
         match self {
             Self::Station => "Station",
             Self::Sniffer => "Sniffer",
-            Self::EspNowCentral => "ESP-NOW Central",
-            Self::EspNowPeripheral => "ESP-NOW Periph",
-            Self::EspNowFastCollector => "ESP-NOW Fast Coll",
-            Self::EspNowFastSource => "ESP-NOW Fast Src",
             Self::AccessPoint => "AP collector",
+            Self::Ht20Emitter => "HT20 emitter",
+            Self::Ht40Emitter => "HT40 emitter",
         }
     }
 
     pub fn next(self) -> Self {
         match self {
             Self::Station => Self::Sniffer,
-            Self::Sniffer => Self::EspNowCentral,
-            Self::EspNowCentral => Self::EspNowPeripheral,
-            Self::EspNowPeripheral => Self::EspNowFastCollector,
-            Self::EspNowFastCollector => Self::EspNowFastSource,
-            Self::EspNowFastSource => Self::AccessPoint,
-            Self::AccessPoint => Self::Station,
+            Self::Sniffer => Self::AccessPoint,
+            Self::AccessPoint => Self::Ht20Emitter,
+            Self::Ht20Emitter => Self::Ht40Emitter,
+            Self::Ht40Emitter => Self::Station,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            Self::Station => Self::AccessPoint,
+            Self::Station => Self::Ht40Emitter,
             Self::Sniffer => Self::Station,
-            Self::EspNowCentral => Self::Sniffer,
-            Self::EspNowPeripheral => Self::EspNowCentral,
-            Self::EspNowFastCollector => Self::EspNowPeripheral,
-            Self::EspNowFastSource => Self::EspNowFastCollector,
-            Self::AccessPoint => Self::EspNowFastSource,
+            Self::AccessPoint => Self::Sniffer,
+            Self::Ht20Emitter => Self::AccessPoint,
+            Self::Ht40Emitter => Self::Ht20Emitter,
         }
     }
 
-    /// `true` for the ESP-NOW modes, which drive traffic at a chosen rate and
-    /// use a fixed channel.
-    pub fn is_esp_now(self) -> bool {
-        matches!(
-            self,
-            Self::EspNowCentral
-                | Self::EspNowPeripheral
-                | Self::EspNowFastCollector
-                | Self::EspNowFastSource
-        )
+    /// `true` for the emitter modes, which take a fixed channel and an
+    /// injection period rather than joining/serving a network.
+    pub fn is_emitter(self) -> bool {
+        matches!(self, Self::Ht20Emitter | Self::Ht40Emitter)
     }
 
-    /// Collection mode for the node. The fast source only transmits (CSI is
-    /// captured on the collector), so it runs as a Listener.
-    pub fn collection_mode(self) -> CollectionMode {
-        match self {
-            Self::EspNowFastSource => CollectionMode::Listener,
-            _ => CollectionMode::Collector,
+    /// `true` when the mode produces local CSI. An emitter only transmits, so
+    /// it captures nothing at all — there is no CSI to deliver and no live
+    /// view to render for it.
+    pub fn captures_csi(self) -> bool {
+        !self.is_emitter()
+    }
+
+    /// TX bandwidth for an emitter, given the stored HT40 selector. Only
+    /// meaningful for the emitter modes. `Ht40Emitter` is 40 MHz by definition,
+    /// so an "off" selector is read as Above rather than dropping to HT20.
+    pub fn emitter_bandwidth(self, ht40: Option<SecondaryChannel>) -> HtBandwidth {
+        match (self, ht40) {
+            (Self::Ht40Emitter, Some(SecondaryChannel::Below)) => HtBandwidth::Ht40Below,
+            (Self::Ht40Emitter, _) => HtBandwidth::Ht40Above,
+            _ => HtBandwidth::Ht20,
         }
     }
 
-    /// I/O task split. The fast source is TX-only; everything else keeps the
-    /// default TX+RX. Re-applied every capture because the node is reused.
+    /// I/O task split. An emitter is TX-only; a collector keeps the default
+    /// TX+RX. Re-applied every capture because the node is reused.
     pub fn io_tasks(self) -> IOTaskConfig {
-        match self {
-            Self::EspNowFastSource => IOTaskConfig::new(true, false),
-            _ => IOTaskConfig::default(),
+        if self.is_emitter() {
+            IOTaskConfig::new(true, false)
+        } else {
+            IOTaskConfig::default()
         }
     }
+}
 
-    /// Wi-Fi protocol set for the mode. Legacy ESP-NOW keeps LR for range, but
-    /// HT40 needs an HT protocol; the fast modes force an MCS7 HT PHY per-peer
-    /// and the 0.8.x examples run them (and AP / Station / Sniffer) on N.
-    pub fn protocol(self, ht40: bool) -> Protocol {
-        match self {
-            Self::EspNowCentral | Self::EspNowPeripheral if !ht40 => Protocol::LR,
-            _ => Protocol::N,
+/// Mode the device falls back to when a stored mode byte can't be resolved.
+pub const DEFAULT_MODE: NodeMode = NodeMode::Sniffer;
+
+/// Latches the retired-discriminant notice. `mode_from_stored` runs on every UI
+/// frame, so an unlatched line would flood the serial port.
+static MIGRATION_LOGGED: AtomicBool = AtomicBool::new(false);
+
+/// Resolve a persisted mode byte, falling back to [`DEFAULT_MODE`].
+///
+/// A config saved by pre-emitter firmware can still carry one of the retired
+/// ESP-NOW discriminants (see [`NodeMode`]). Those no longer resolve, so note
+/// the substitution once instead of letting the device look like it silently
+/// ignored the saved mode.
+pub fn mode_from_stored(v: u8) -> NodeMode {
+    match NodeMode::from_u8(v) {
+        Some(mode) => mode,
+        None => {
+            if matches!(v, 3..=6) && !MIGRATION_LOGGED.swap(true, Ordering::Relaxed) {
+                esp_println::println!(
+                    "config: stored node mode {} is a retired ESP-NOW mode; falling back to {}",
+                    v,
+                    DEFAULT_MODE.label()
+                );
+            }
+            DEFAULT_MODE
         }
     }
 }
@@ -244,9 +239,10 @@ pub const CSI_FLAGS_DEFAULT: u8 = CSI_LLTF | CSI_HTLTF | CSI_STBC_HTLTF2 | CSI_L
 // HT40 secondary-channel selection (stored in `shared::HT40_SEL`)
 // ---------------------------------------------------------------------------
 
-/// Map the stored HT40 selector to a secondary channel. `None` means HT20 —
-/// `with_ht40` must then be omitted entirely (passing `SecondaryChannel::None`
-/// still flags the node HT40 and wedges RX; known esp-csi-rs pitfall).
+/// Map the stored HT40 selector to a secondary channel, consumed by the AP
+/// collector and the HT40 emitter. `None` means HT20 — the secondary channel
+/// must then be left unset entirely, because passing `SecondaryChannel::None`
+/// still flags the node HT40 and wedges RX (known esp-csi-rs pitfall).
 pub fn ht40_from_u8(v: u8) -> Option<SecondaryChannel> {
     match v {
         1 => Some(SecondaryChannel::Above),
@@ -266,6 +262,10 @@ pub fn ht40_label(v: u8) -> &'static str {
 
 /// `RxCSIFmt` variant names in declaration order (the discriminant postcard
 /// stores). Must stay aligned with esp-csi-rs and `tools/bin_to_csv.py`.
+///
+/// Indices 14 and 15 are placeholders. They held two formats an out-of-tree
+/// fork inserted ahead of `Undefined`; the slots stay so the ordinals around
+/// them — and `.BIN` files written by earlier firmware — still line up.
 pub fn fmt_label(v: u8) -> &'static str {
     const NAMES: [&str; 17] = [
         "Bw20",
@@ -282,8 +282,8 @@ pub fn fmt_label(v: u8) -> &'static str {
         "SecaHtBw40",
         "SecaHtBw40Stbc",
         "VhtBw20",
-        "He20Su",
-        "He20Mu",
+        "Reserved14",
+        "Reserved15",
         "Undefined",
     ];
     NAMES.get(v as usize).copied().unwrap_or("?")
@@ -312,8 +312,7 @@ pub struct Config {
     pub csi_flags: u8,
     pub csi_shift: u8,
     pub delivery: DeliveryMode,
-    pub rate: WifiPhyRate,
-    /// HT40 secondary channel for the ESP-NOW modes (`None` = HT20).
+    /// HT40 secondary channel (`None` = HT20).
     pub ht40: Option<SecondaryChannel>,
 }
 
@@ -321,14 +320,12 @@ impl Config {
     /// Read the live configuration from `shared`'s control atomics.
     pub fn load() -> Self {
         Self {
-            mode: NodeMode::from_u8(shared::MODE.load(Ordering::Relaxed))
-                .unwrap_or(NodeMode::Sniffer),
+            mode: mode_from_stored(shared::MODE.load(Ordering::Relaxed)),
             channel: shared::CHANNEL.load(Ordering::Relaxed),
             traffic_hz: shared::TRAFFIC_HZ.load(Ordering::Relaxed),
             csi_flags: shared::CSI_FLAGS.load(Ordering::Relaxed),
             csi_shift: shared::CSI_SHIFT.load(Ordering::Relaxed),
             delivery: DeliveryMode::from_u8(shared::DELIVERY.load(Ordering::Relaxed)),
-            rate: rate_from_index(shared::RATE_SEL.load(Ordering::Relaxed)),
             ht40: ht40_from_u8(shared::HT40_SEL.load(Ordering::Relaxed)),
         }
     }

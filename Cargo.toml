@@ -7,9 +7,9 @@ license = "Apache-2.0"
 
 [dependencies]
 # --- CSI driver (pins the whole esp-* ecosystem below) ---
-esp-csi-rs = { version = "0.8.3", features = ["esp32s3", "statistics"] }
+esp-csi-rs = { version = "0.9", features = ["esp32s3", "statistics"] }
 
-# --- Core HAL / runtime / radio (versions matched to esp-csi-rs 0.8.3) ---
+# --- Core HAL / runtime / radio (versions matched to esp-csi-rs 0.9) ---
 esp-hal = { version = "1.1", features = ["esp32s3", "unstable"] }
 esp-rtos = { version = "0.3.0", features = ["embassy", "esp32s3", "esp-radio"] }
 esp-radio = { version = "0.18.0", default-features = false, features = [
@@ -17,7 +17,6 @@ esp-radio = { version = "0.18.0", default-features = false, features = [
     "wifi",
     "sniffer",
     "csi",
-    "esp-now",
     "esp-alloc",
     "unstable",
 ] }
@@ -55,6 +54,12 @@ libm = "0.2.16"
 # Force no-std on transitive crates that can otherwise pull in std.
 either = { version = "1.15.0", default-features = false }
 castaway = { version = "0.2.4", default-features = false }
+
+# The emitter/collector role API is not on crates.io yet. Drop this once
+# esp-csi-rs 0.9 (and esp-csi-rs-core 0.2) are published.
+[patch.crates-io]
+esp-csi-rs = { git = "https://github.com/csi-rs/esp-csi-rs.git", branch = "feat/emitter-collector" }
+esp-csi-rs-core = { git = "https://github.com/csi-rs/esp-csi-rs-core.git", branch = "feat/emitter-collector" }
 
 [profile.dev]
 opt-level = "s"

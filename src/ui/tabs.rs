@@ -179,8 +179,8 @@ pub fn stats(f: &mut Frame, area: Rect, m: &Model) {
     let rate_hz = esp_csi_rs::get_rx_rate_hz();
     let total = esp_csi_rs::get_total_rx_packets();
     let radio_drops = esp_csi_rs::get_dropped_packets_rx();
-    // TX side: the only sign of life in ESP-NOW Fast Source mode, which
-    // transmits the flood while all CSI is captured on the collector.
+    // TX side: the only sign of life in the emitter modes, which transmit the
+    // sounding frames while all CSI is captured on the companion collector.
     let tx_pps = esp_csi_rs::get_pps_tx();
     let tx_total = esp_csi_rs::get_total_tx_packets();
     let ring_drops = shared::RING_DROPS.load(Ordering::Relaxed);
@@ -218,5 +218,45 @@ pub fn stats(f: &mut Frame, area: Rect, m: &Model) {
     ];
 
     let p = Paragraph::new(lines).block(panel("Statistics"));
+    f.render_widget(p, area);
+}
+
+/// Transmit status for the emitter modes (they capture no CSI, so none of the
+/// instrument tabs have anything to plot).
+pub fn emitter(f: &mut Frame, area: Rect) {
+    let cfg = crate::config::Config::load();
+    let tx_pps = esp_csi_rs::get_pps_tx();
+    let tx_total = esp_csi_rs::get_total_tx_packets();
+
+    let lines = alloc::vec![
+        Line::from(Span::styled(
+            "Transmit-only: no CSI is captured on this node.",
+            Style::default().fg(TXT),
+        )),
+        Line::from(""),
+        Line::from(alloc::vec![
+            Span::styled("channel    : ", Style::default().fg(TXT)),
+            Span::styled(
+                alloc::format!("{}", cfg.channel),
+                Style::default().fg(HI).add_modifier(Modifier::BOLD)
+            ),
+        ]),
+        Line::from(alloc::vec![
+            Span::styled("inject rate: ", Style::default().fg(TXT)),
+            Span::styled(
+                alloc::format!("{} Hz", cfg.traffic_hz),
+                Style::default().fg(HI).add_modifier(Modifier::BOLD)
+            ),
+        ]),
+        Line::from(alloc::vec![
+            Span::styled("TX pps/tot : ", Style::default().fg(TXT)),
+            Span::styled(
+                alloc::format!("{} / {}", tx_pps, tx_total),
+                Style::default().fg(HI).add_modifier(Modifier::BOLD)
+            ),
+        ]),
+    ];
+
+    let p = Paragraph::new(lines).block(panel("Emitter (TX only)"));
     f.render_widget(p, area);
 }
