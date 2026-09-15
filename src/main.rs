@@ -45,7 +45,8 @@ use embedded_sdmmc::{SdCard, VolumeManager};
 
 use esp_csi_rs::logging::logging::{init_logger, LogMode};
 use esp_csi_rs::{
-    CSINode, CSINodeClient, CollectorMode, EmitterConfig, NodeHardware, NodeRole, WifiApConfig,
+    CSINode, CSINodeClient, EmitterConfig, EspNowConfig, NetworkRole, NodeHardware,
+    OperationalMode, SimplexConfig, WifiApConfig,
     WifiSnifferConfig, WifiStationConfig,
 };
 use esp_radio::wifi::ap::AccessPointConfig;
@@ -125,7 +126,7 @@ async fn main(spawner: Spawner) -> ! {
 
     let csi_hardware = NodeHardware::new(&mut interfaces, controller);
     let mut node = CSINode::new(
-        node_role(&Config::load()),
+        operational_mode(&Config::load()),
         Some(Config::load().csi_config()),
         Some(Config::load().traffic_hz),
         csi_hardware,
@@ -133,9 +134,10 @@ async fn main(spawner: Spawner) -> ! {
 
     loop {
         let cfg = Config::load();
-        node.set_role(node_role(&cfg));
-        // An emitter captures nothing, so there is no CSI to deliver.
-        node.set_csi_output_enabled(cfg.mode.captures_csi());
+        node.set_operational_mode(operational_mode(&cfg));
+        // An emitter captures nothing, so there is no CSI to deliver. The free function, not the
+        // node method: the method was a no-op, and this one closes the publish gate.
+        esp_csi_rs::set_csi_output_enabled(cfg.mode.captures_csi());
         // The node is reused across captures and `io_tasks` persists, so a
         // TX-only emitter run must not leave RX disabled for the next mode.
         node.set_io_tasks(cfg.mode.io_tasks());
@@ -185,29 +187,50 @@ async fn wait_until_running() {
     }
 }
 
-/// Build the esp-csi-rs node role for the selected mode.
-fn node_role(cfg: &Config) -> NodeRole {
+/// Build the esp-csi-rs operational mode for the selected node mode.
+///
+/// The network role and collection mode ride along with each config rather than being chosen
+/// here: this board is a collector in every mode that captures, and the emitter modes are central
+/// listeners by construction.
+fn operational_mode(cfg: &Config) -> OperationalMode {
     match cfg.mode {
-        NodeMode::Station => NodeRole::Collector(CollectorMode::Station(WifiStationConfig::new(
+        NodeMode::Station => OperationalMode::Station(WifiStationConfig::new(
             StationConfig::default()
                 .with_ssid(config::WIFI_SSID)
                 .with_password(config::WIFI_PASSWORD.to_string())
                 .with_auth_method(AuthenticationMethod::Wpa2Personal),
-        ))),
-        NodeMode::Sniffer => NodeRole::Collector(CollectorMode::Sniffer(
-            WifiSnifferConfig::default().with_channel(cfg.channel),
         )),
-        NodeMode::AccessPoint => NodeRole::Collector(CollectorMode::AccessPoint(
-            WifiApConfig::new(
-                AccessPointConfig::default()
-                    .with_ssid(config::AP_SSID)
-                    .with_channel(cfg.channel),
-                cfg.channel,
-                cfg.ht40,
-            ),
+        NodeMode::Sniffer => {
+            OperationalMode::Sniffer(WifiSnifferConfig::default().with_channel(cfg.channel))
+        }
+        NodeMode::AccessPoint => OperationalMode::AccessPoint(WifiApConfig::new(
+            AccessPointConfig::default()
+                .with_ssid(config::AP_SSID)
+                .with_channel(cfg.channel),
+            cfg.channel,
+            cfg.ht40,
         )),
         // Both emitter modes share one config; only the bandwidth differs.
-        NodeMode::Ht20Emitter | NodeMode::Ht40Emitter => NodeRole::Emitter(emitter_cfg(cfg)),
+        NodeMode::Ht20Emitter | NodeMode::Ht40Emitter => OperationalMode::Emitter(emitter_cfg(cfg)),
+        // ESP-NOW: one mode, two ends, selected by the network role.
+        NodeMode::EspNowCentral => OperationalMode::EspNow(
+            EspNowConfig::default()
+                .with_channel(cfg.channel)
+                .with_network_role(NetworkRole::Central),
+        ),
+        NodeMode::EspNowPeripheral => OperationalMode::EspNow(
+            EspNowConfig::default()
+                .with_channel(cfg.channel)
+                .with_network_role(NetworkRole::Peripheral),
+        ),
+        // The simplex ends are fixed: the one that floods is the central listener, the one that
+        // beacons and then receives is the peripheral collector.
+        NodeMode::EspNowSimplexSource => OperationalMode::EspNowSimplex(SimplexConfig::source(
+            EspNowConfig::default().with_channel(cfg.channel),
+        )),
+        NodeMode::EspNowSimplexPeer => {
+            OperationalMode::EspNowSimplex(SimplexConfig::peer(cfg.channel))
+        }
     }
 }
 

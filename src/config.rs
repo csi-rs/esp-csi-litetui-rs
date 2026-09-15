@@ -40,12 +40,14 @@ pub const TRAFFIC_STEPS: [u16; 8] = [10, 50, 100, 500, 1000, 2000, 4000, 8000];
 ///
 /// The discriminants are persisted as a `u8` (NVS / SD-card config) and read
 /// back through [`NodeMode::from_u8`], so a value's meaning is permanent.
-/// **Discriminants 3, 4, 5 and 6 are retired** — they were the ESP-NOW modes
-/// (central, peripheral, fast collector, fast source) that esp-csi-rs dropped
-/// along with its ESP-NOW transport. They are never reused: `from_u8` rejects
-/// them so a config written by older firmware fails safe to the default mode
-/// instead of silently resolving to a different one. New variants therefore
-/// continue from 8.
+/// **Discriminants 3, 4, 5 and 6 are retired and must never be reused.** They were the ESP-NOW
+/// modes in a much older build. ESP-NOW is back — `esp-csi-rs` never actually dropped it — but the
+/// old numbers cannot come back with it, and the reason is stronger than "they were reused once":
+/// old discriminant 4 meant the simplex end that *beacons and then receives*, filed at the time as
+/// a central. In the node model that end sources no traffic and is the **peripheral**. A config
+/// written by pre-0.11 firmware and read by this one would put the node on the wrong side of the
+/// link, and it would look like it worked. `from_u8` rejects 3..=6 so such a config fails safe to
+/// the default mode instead. New variants continue from 10.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum NodeMode {
     Station = 1,
@@ -59,6 +61,16 @@ pub enum NodeMode {
     /// TX-only HT40 emitter: as [`Self::Ht20Emitter`] but 40 MHz wide, with the
     /// secondary channel taken from the HT40 selector.
     Ht40Emitter = 9,
+    /// ESP-NOW central: originates the control traffic and captures the peripheral's replies.
+    EspNowCentral = 10,
+    /// ESP-NOW peripheral: answers a central's control frames and captures them.
+    EspNowPeripheral = 11,
+    /// ESP-NOW simplex source: owns all transmit airtime and captures nothing. A central listener,
+    /// so like the emitters it renders no live view.
+    EspNowSimplexSource = 12,
+    /// ESP-NOW simplex peer: beacons until it is found, then goes receive-only. The highest CSI
+    /// rate this board can reach.
+    EspNowSimplexPeer = 13,
 }
 
 impl NodeMode {
@@ -71,6 +83,10 @@ impl NodeMode {
             7 => Some(Self::AccessPoint),
             8 => Some(Self::Ht20Emitter),
             9 => Some(Self::Ht40Emitter),
+            10 => Some(Self::EspNowCentral),
+            11 => Some(Self::EspNowPeripheral),
+            12 => Some(Self::EspNowSimplexSource),
+            13 => Some(Self::EspNowSimplexPeer),
             _ => None,
         }
     }
@@ -84,6 +100,10 @@ impl NodeMode {
             Self::AccessPoint => "AP collector",
             Self::Ht20Emitter => "HT20 emitter",
             Self::Ht40Emitter => "HT40 emitter",
+            Self::EspNowCentral => "ESP-NOW central",
+            Self::EspNowPeripheral => "ESP-NOW periph",
+            Self::EspNowSimplexSource => "Simplex source",
+            Self::EspNowSimplexPeer => "Simplex peer",
         }
     }
 
@@ -93,17 +113,25 @@ impl NodeMode {
             Self::Sniffer => Self::AccessPoint,
             Self::AccessPoint => Self::Ht20Emitter,
             Self::Ht20Emitter => Self::Ht40Emitter,
-            Self::Ht40Emitter => Self::Station,
+            Self::Ht40Emitter => Self::EspNowCentral,
+            Self::EspNowCentral => Self::EspNowPeripheral,
+            Self::EspNowPeripheral => Self::EspNowSimplexSource,
+            Self::EspNowSimplexSource => Self::EspNowSimplexPeer,
+            Self::EspNowSimplexPeer => Self::Station,
         }
     }
 
     pub fn prev(self) -> Self {
         match self {
-            Self::Station => Self::Ht40Emitter,
+            Self::Station => Self::EspNowSimplexPeer,
             Self::Sniffer => Self::Station,
             Self::AccessPoint => Self::Sniffer,
             Self::Ht20Emitter => Self::AccessPoint,
             Self::Ht40Emitter => Self::Ht20Emitter,
+            Self::EspNowCentral => Self::Ht40Emitter,
+            Self::EspNowPeripheral => Self::EspNowCentral,
+            Self::EspNowSimplexSource => Self::EspNowPeripheral,
+            Self::EspNowSimplexPeer => Self::EspNowSimplexSource,
         }
     }
 
@@ -113,11 +141,11 @@ impl NodeMode {
         matches!(self, Self::Ht20Emitter | Self::Ht40Emitter)
     }
 
-    /// `true` when the mode produces local CSI. An emitter only transmits, so
-    /// it captures nothing at all — there is no CSI to deliver and no live
-    /// view to render for it.
+    /// `true` when the mode produces local CSI. An emitter only transmits, so it captures nothing
+    /// at all — there is no CSI to deliver and no live view to render for it. The simplex source
+    /// is the same case under a different name: a central listener.
     pub fn captures_csi(self) -> bool {
-        !self.is_emitter()
+        !self.is_emitter() && !matches!(self, Self::EspNowSimplexSource)
     }
 
     /// TX bandwidth for an emitter, given the stored HT40 selector. Only
@@ -134,7 +162,7 @@ impl NodeMode {
     /// I/O task split. An emitter is TX-only; a collector keeps the default
     /// TX+RX. Re-applied every capture because the node is reused.
     pub fn io_tasks(self) -> IOTaskConfig {
-        if self.is_emitter() {
+        if self.is_emitter() || matches!(self, Self::EspNowSimplexSource) {
             IOTaskConfig::new(true, false)
         } else {
             IOTaskConfig::default()
