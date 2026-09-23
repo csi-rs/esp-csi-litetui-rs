@@ -65,7 +65,7 @@ pub enum NodeMode {
     EspNowCentral = 10,
     /// ESP-NOW peripheral: answers a central's control frames and captures them.
     EspNowPeripheral = 11,
-    /// ESP-NOW simplex source: owns all transmit airtime and captures nothing. A central listener,
+    /// ESP-NOW simplex source: owns all transmit airtime and reports no CSI. A central listener,
     /// so like the emitters it renders no live view.
     EspNowSimplexSource = 12,
     /// ESP-NOW simplex peer: beacons until it is found, then goes receive-only. The highest CSI
@@ -143,7 +143,7 @@ impl NodeMode {
 
     /// `true` when the mode produces local CSI. An emitter only transmits, so it captures nothing
     /// at all — there is no CSI to deliver and no live view to render for it. The simplex source
-    /// is the same case under a different name: a central listener.
+    /// is a central listener, so it delivers none either.
     pub fn captures_csi(self) -> bool {
         !self.is_emitter() && !matches!(self, Self::EspNowSimplexSource)
     }

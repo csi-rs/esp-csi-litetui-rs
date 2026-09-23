@@ -63,8 +63,10 @@ pub static PACKET_COUNT: AtomicUsize = AtomicUsize::new(0);
 // ---------------------------------------------------------------------------
 
 /// Selected node mode: `0` = unset, `1` = station, `2` = sniffer,
-/// `7` = AP collector, `8` = HT20 emitter, `9` = HT40 emitter. Values `3`–`6`
-/// are retired ESP-NOW modes and never resolve (see [`crate::config::NodeMode`]).
+/// `7` = AP collector, `8` = HT20 emitter, `9` = HT40 emitter,
+/// `10` = ESP-NOW central, `11` = ESP-NOW peripheral, `12` = simplex source,
+/// `13` = simplex peer. Values `3`–`6` are retired ESP-NOW modes and never
+/// resolve (see [`crate::config::NodeMode`]).
 pub static MODE: AtomicU8 = AtomicU8::new(0);
 
 /// Run state machine:

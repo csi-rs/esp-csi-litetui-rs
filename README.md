@@ -5,7 +5,7 @@
 ### A handheld Wi-Fi CSI scope for the M5Stack CoreS3 SE
 
 Real-time on-device Channel State Information (CSI) capture, scientific
-visualization, and SD-card logging — built in Rust on `esp-csi-rs 0.9`,
+visualization, and SD-card logging — built in Rust on `esp-csi-rs 0.11`,
 `esp-hal 1.1`, and `esp-radio 0.18`.
 
 </div>
@@ -22,19 +22,27 @@ format (or CSV) for off-line analysis.
 
 ## Features
 
-* **All `esp-csi-rs` node modes**, selectable on-device. The scope is normally a
-  **collector** — it needs CSI to display — but it can also drive a companion
-  board as an **emitter**:
-  * **Collector** — Wi-Fi **Station** (joins an AP and measures its downlink),
-    Wi-Fi **Sniffer** (locks a channel and measures every frame overheard; this
-    is the path that pairs with an emitter), and **AP collector**
-    (self-contained softAP + DHCP; an associating station generates the
-    captured traffic).
-  * **Emitter** — **HT20 emitter** / **HT40 emitter**: transmit-only. The node
-    forces its TX PHY and loop-injects raw sounding frames on a fixed channel at
-    the configured rate, without associating to anything. It captures no CSI, so
-    the live screen shows transmit status instead of the instrument tabs — point
-    a second device at the same channel in Sniffer mode to measure it.
+* **Nine operational modes**, selectable on-device. How each one sets the
+  node's network role and collection mode is defined by the esp-csi-rs
+  [network model](https://github.com/csi-rs/esp-csi-rs/blob/main/docs/network-model.md); this scope runs every mode that captures as a
+  **collector**, since it needs CSI to display.
+  * **Station** — joins an AP and measures its downlink.
+  * **Sniffer** — locks a channel and measures every frame overheard; this is
+    the path that pairs with an emitter.
+  * **AP collector** — self-contained softAP + DHCP; an associating station
+    generates the captured traffic.
+  * **HT20 emitter** / **HT40 emitter** — the Emitter operational mode, a
+    central listener: it sounds a fixed channel at the configured rate without
+    associating to anything and captures no CSI, so the live screen shows
+    transmit status instead of the instrument tabs. Point a second device at
+    the same channel in Sniffer mode to measure it.
+  * **ESP-NOW central** / **ESP-NOW periph** — the two ends of an ESP-NOW
+    link; each captures the other's frames.
+  * **Simplex source** / **Simplex peer** — the two ends of ESP-NOW simplex.
+    The source floods and is the central listener, so like the emitters it
+    reports no CSI and renders no live view; the peer beacons until found,
+    then goes receive-only as the peripheral collector, the highest CSI rate
+    this board reaches.
 * **HT40**: pick the secondary channel (Above/Below) on the setup screen for
   ~117–128 subcarriers instead of ~56. It selects the AP collector's secondary
   channel and the HT40 emitter's sideband (the HT40 emitter is 40 MHz either
@@ -87,18 +95,21 @@ cargo run --release        # builds, flashes, and opens the serial monitor
 Target (`xtensa-esp32s3-none-elf`), runner, and `build-std` are preconfigured in
 [`.cargo/config.toml`](.cargo/config.toml).
 
-The emitter/collector role API is not on crates.io yet, so `Cargo.toml` carries a
-`[patch.crates-io]` entry pointing `esp-csi-rs` / `esp-csi-rs-core` at their
-`feat/emitter-collector` branches. Drop the patch once those versions publish.
+`esp-csi-rs` 0.11 is not on crates.io yet, so `Cargo.toml` carries a
+`[patch.crates-io]` entry pointing `esp-csi-rs` at a sibling `../esp-csi-rs`
+checkout. Drop the patch once 0.11 publishes.
 
 ### Upgrading from an ESP-NOW build
 
-`esp-csi-rs` removed its ESP-NOW transport, so the four ESP-NOW node modes are
-gone. Their persisted mode indices (3–6) are permanently retired rather than
-reused, so a saved config from an older build resolves to nothing, falls back to
-**Sniffer**, and logs a one-line notice on the serial port. Reselect the mode you
-want on the setup screen. Station (1), Sniffer (2) and AP collector (7) keep
-their indices and are unaffected.
+The ESP-NOW modes are back, under new persisted mode indices 10–13 (ESP-NOW
+central, ESP-NOW periph, Simplex source, Simplex peer). Their old indices (3–6)
+are permanently retired rather than reused: the old simplex assignment had the
+sides the wrong way round, so reading an old config as a new mode would put the
+node on the wrong end of the link while appearing to work. A saved config from
+an older build therefore resolves to nothing, falls back to **Sniffer**, and
+logs a one-line notice on the serial port. Reselect the mode you want on the
+setup screen. Station (1), Sniffer (2), AP collector (7) and the emitters (8, 9)
+keep their indices and are unaffected.
 
 ## On-device usage
 

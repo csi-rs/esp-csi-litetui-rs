@@ -4,6 +4,11 @@ version = "0.2.0"
 edition = "2024"
 description = "Handheld Wi-Fi CSI scope for the M5Stack CoreS3 SE (ESP32-S3)"
 license = "Apache-2.0"
+repository = "https://github.com/csi-rs/esp-csi-litetui-rs"
+readme = "README.md"
+keywords = ["esp32", "wifi", "csi", "embedded", "no-std"]
+categories = ["embedded", "no-std"]
+publish = false
 
 [dependencies]
 # --- CSI driver (pins the whole esp-* ecosystem below) ---
