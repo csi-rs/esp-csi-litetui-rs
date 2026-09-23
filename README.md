@@ -95,10 +95,6 @@ cargo run --release        # builds, flashes, and opens the serial monitor
 Target (`xtensa-esp32s3-none-elf`), runner, and `build-std` are preconfigured in
 [`.cargo/config.toml`](.cargo/config.toml).
 
-`esp-csi-rs` 0.11 is not on crates.io yet, so `Cargo.toml` carries a
-`[patch.crates-io]` entry pointing `esp-csi-rs` at a sibling `../esp-csi-rs`
-checkout. Drop the patch once 0.11 publishes.
-
 ### Upgrading from an ESP-NOW build
 
 The ESP-NOW modes are back, under new persisted mode indices 10–13 (ESP-NOW

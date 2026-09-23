@@ -60,12 +60,6 @@ libm = "0.2.16"
 either = { version = "1.15.0", default-features = false }
 castaway = { version = "0.2.4", default-features = false }
 
-# esp-csi-rs 0.11 (the node model) is not on crates.io yet. Drop this once it publishes.
-#
-# `esp-csi-rs-core` is gone from here: that crate was deprecated and folded back into `esp-csi-rs`,
-# so patching it pinned a dependency this build no longer has.
-[patch.crates-io]
-esp-csi-rs = { path = "../esp-csi-rs" }
 
 [profile.dev]
 opt-level = "s"
