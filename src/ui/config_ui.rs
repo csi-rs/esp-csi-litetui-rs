@@ -14,7 +14,7 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 use super::{ACCENT, FRAME, HI, TXT};
-use crate::config::{self, DeliveryMode, LogFormat, NodeMode, TRAFFIC_STEPS};
+use crate::config::{self, DeliveryMode, LogFormat, TRAFFIC_STEPS};
 use crate::shared;
 
 #[derive(Clone, Copy)]
@@ -22,7 +22,7 @@ enum Field {
     Mode,
     Channel,
     Traffic,
-    Rate,
+    Ht40,
     Delivery,
     Format,
     Flag(u8, &'static str),
@@ -33,7 +33,7 @@ const FIELDS: [Field; 13] = [
     Field::Mode,
     Field::Channel,
     Field::Traffic,
-    Field::Rate,
+    Field::Ht40,
     Field::Delivery,
     Field::Format,
     Field::Flag(config::CSI_LLTF, "L-LTF"),
@@ -52,10 +52,10 @@ pub struct ConfigUi {
 impl ConfigUi {
     pub fn new() -> Self {
         // Seed the control atomics with sensible defaults (single-node sniffer).
-        shared::MODE.store(NodeMode::Sniffer as u8, Ordering::Relaxed);
+        shared::MODE.store(config::DEFAULT_MODE as u8, Ordering::Relaxed);
         shared::CHANNEL.store(1, Ordering::Relaxed);
         shared::TRAFFIC_HZ.store(100, Ordering::Relaxed);
-        shared::RATE_SEL.store(config::RATE_DEFAULT_IDX, Ordering::Relaxed);
+        shared::HT40_SEL.store(0, Ordering::Relaxed);
         shared::CSI_FLAGS.store(config::CSI_FLAGS_DEFAULT, Ordering::Relaxed);
         shared::CSI_SHIFT.store(0, Ordering::Relaxed);
         shared::DELIVERY.store(0, Ordering::Relaxed);
@@ -107,15 +107,10 @@ impl ConfigUi {
                 };
                 shared::TRAFFIC_HZ.store(TRAFFIC_STEPS[idx], Ordering::Relaxed);
             }
-            Field::Rate => {
-                let cur = shared::RATE_SEL.load(Ordering::Relaxed);
-                let last = (config::RATE_OPTIONS.len() - 1) as u8;
-                let next = if inc {
-                    (cur + 1).min(last)
-                } else {
-                    cur.saturating_sub(1)
-                };
-                shared::RATE_SEL.store(next, Ordering::Relaxed);
+            Field::Ht40 => {
+                let v = shared::HT40_SEL.load(Ordering::Relaxed);
+                let v = if inc { (v + 1).min(2) } else { v.saturating_sub(1) };
+                shared::HT40_SEL.store(v, Ordering::Relaxed);
             }
             Field::Delivery => {
                 let v = shared::DELIVERY.load(Ordering::Relaxed);
@@ -147,8 +142,8 @@ impl ConfigUi {
             Field::Mode => alloc::string::String::from(super::current_mode().label()),
             Field::Channel => alloc::format!("{}", shared::CHANNEL.load(Ordering::Relaxed)),
             Field::Traffic => alloc::format!("{} Hz", shared::TRAFFIC_HZ.load(Ordering::Relaxed)),
-            Field::Rate => alloc::string::String::from(config::rate_label(
-                shared::RATE_SEL.load(Ordering::Relaxed),
+            Field::Ht40 => alloc::string::String::from(config::ht40_label(
+                shared::HT40_SEL.load(Ordering::Relaxed),
             )),
             Field::Delivery => alloc::string::String::from(
                 DeliveryMode::from_u8(shared::DELIVERY.load(Ordering::Relaxed)).label(),
@@ -169,7 +164,7 @@ impl ConfigUi {
             Field::Mode => "Node mode",
             Field::Channel => "Channel",
             Field::Traffic => "Traffic",
-            Field::Rate => "PHY rate",
+            Field::Ht40 => "HT40 sec",
             Field::Delivery => "Delivery",
             Field::Format => "Log format",
             Field::Flag(_, name) => name,

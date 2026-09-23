@@ -66,6 +66,7 @@ pub struct Model {
     pub rate: u16,
     pub seq: u16,
     pub csi_len: u16,
+    pub fmt: u8,
     pub packets: usize,
     start_ms: u64,
     last_pkt: usize,
@@ -89,6 +90,7 @@ impl Model {
             rate: 0,
             seq: 0,
             csi_len: 0,
+            fmt: 16, // RxCSIFmt::Undefined
             packets: 0,
             start_ms: now_ms,
             last_pkt: 0,
@@ -116,6 +118,7 @@ impl Model {
         self.rate = shared::RATE.load(Ordering::Relaxed);
         self.seq = shared::SEQUENCE.load(Ordering::Relaxed);
         self.csi_len = shared::CSI_LEN.load(Ordering::Relaxed);
+        self.fmt = shared::DATA_FORMAT.load(Ordering::Relaxed);
         let pc = shared::PACKET_COUNT.load(Ordering::Relaxed);
         self.packets = pc;
 
@@ -198,7 +201,8 @@ impl Ui {
                     if x < 64 {
                         self.screen = Screen::SavePrompt;
                         return Action::StopCapture;
-                    } else if x > SCREEN_W - 64 {
+                    } else if x > SCREEN_W - 64 && current_mode().captures_csi() {
+                        // The emitter screen has no tabs to cycle.
                         self.tab = (self.tab + 1) % TAB_COUNT;
                     }
                 }
@@ -245,6 +249,13 @@ impl Ui {
 
         self.render_status_bar(f, rows[0]);
 
+        // An emitter captures nothing, so the instrument tabs would only plot an
+        // empty model. Show its transmit status instead.
+        if !current_mode().captures_csi() {
+            tabs::emitter(f, rows[1]);
+            return;
+        }
+
         match self.tab {
             0 => tabs::spectrum(f, rows[1], &self.model),
             1 => tabs::phase(f, rows[1], &self.model),
@@ -272,7 +283,11 @@ impl Ui {
         f.render_widget(stop, cols[0]);
 
         let cfg = Config::load();
-        let tab = TAB_NAMES[self.tab as usize];
+        let tab = if cfg.mode.captures_csi() {
+            TAB_NAMES[self.tab as usize]
+        } else {
+            "Emitter"
+        };
         let sd = match shared::SD_STATUS.load(Ordering::Relaxed) {
             shared::SD_OK => Span::styled("REC", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
             shared::SD_NO_CARD => Span::styled("NO SD", Style::default().fg(Color::Yellow)),
@@ -363,5 +378,5 @@ pub(crate) fn panel(title: &str) -> Block<'_> {
 
 /// Convenience for the selected node mode (used by config + status).
 pub(crate) fn current_mode() -> NodeMode {
-    NodeMode::from_u8(shared::MODE.load(Ordering::Relaxed)).unwrap_or(NodeMode::Sniffer)
+    crate::config::mode_from_stored(shared::MODE.load(Ordering::Relaxed))
 }

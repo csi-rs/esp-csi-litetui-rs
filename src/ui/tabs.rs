@@ -34,7 +34,7 @@ pub fn spectrum(f: &mut Frame, area: Rect, m: &Model) {
             Axis::default()
                 .style(Style::default().fg(FRAME))
                 .bounds([0.0, NUM_SUBCARRIERS as f64])
-                .labels(alloc::vec![Span::raw("0"), Span::raw("32"), Span::raw("63")]),
+                .labels(alloc::vec![Span::raw("0"), Span::raw("64"), Span::raw("127")]),
         )
         .y_axis(
             Axis::default()
@@ -67,7 +67,7 @@ pub fn phase(f: &mut Frame, area: Rect, m: &Model) {
             Axis::default()
                 .style(Style::default().fg(FRAME))
                 .bounds([0.0, NUM_SUBCARRIERS as f64])
-                .labels(alloc::vec![Span::raw("0"), Span::raw("63")]),
+                .labels(alloc::vec![Span::raw("0"), Span::raw("127")]),
         )
         .y_axis(
             Axis::default()
@@ -179,6 +179,10 @@ pub fn stats(f: &mut Frame, area: Rect, m: &Model) {
     let rate_hz = esp_csi_rs::get_rx_rate_hz();
     let total = esp_csi_rs::get_total_rx_packets();
     let radio_drops = esp_csi_rs::get_dropped_packets_rx();
+    // TX side: the only sign of life in the emitter modes, which transmit the
+    // sounding frames while all CSI is captured on the companion collector.
+    let tx_pps = esp_csi_rs::get_pps_tx();
+    let tx_total = esp_csi_rs::get_total_tx_packets();
     let ring_drops = shared::RING_DROPS.load(Ordering::Relaxed);
     let recs = shared::SD_RECORDS.load(Ordering::Relaxed);
 
@@ -204,13 +208,55 @@ pub fn stats(f: &mut Frame, area: Rect, m: &Model) {
         kv("radio drops: ", alloc::format!("{}", radio_drops)),
         kv("ring drops : ", alloc::format!("{}", ring_drops)),
         kv("logged recs: ", alloc::format!("{}", recs)),
+        kv("TX pps/tot : ", alloc::format!("{} / {}", tx_pps, tx_total)),
         Line::from(""),
         kv("phy / bw   : ", alloc::format!("{} / {}", phy, bw)),
         kv("mcs / rate : ", alloc::format!("{} / {}", m.mcs, m.rate)),
+        kv("format     : ", alloc::string::String::from(crate::config::fmt_label(m.fmt))),
         kv("noise floor: ", alloc::format!("{} dBm", m.noise)),
         kv("seq / len  : ", alloc::format!("{} / {}", m.seq, m.csi_len)),
     ];
 
     let p = Paragraph::new(lines).block(panel("Statistics"));
+    f.render_widget(p, area);
+}
+
+/// Transmit status for the emitter modes (they capture no CSI, so none of the
+/// instrument tabs have anything to plot).
+pub fn emitter(f: &mut Frame, area: Rect) {
+    let cfg = crate::config::Config::load();
+    let tx_pps = esp_csi_rs::get_pps_tx();
+    let tx_total = esp_csi_rs::get_total_tx_packets();
+
+    let lines = alloc::vec![
+        Line::from(Span::styled(
+            "Transmit-only: no CSI is captured on this node.",
+            Style::default().fg(TXT),
+        )),
+        Line::from(""),
+        Line::from(alloc::vec![
+            Span::styled("channel    : ", Style::default().fg(TXT)),
+            Span::styled(
+                alloc::format!("{}", cfg.channel),
+                Style::default().fg(HI).add_modifier(Modifier::BOLD)
+            ),
+        ]),
+        Line::from(alloc::vec![
+            Span::styled("inject rate: ", Style::default().fg(TXT)),
+            Span::styled(
+                alloc::format!("{} Hz", cfg.traffic_hz),
+                Style::default().fg(HI).add_modifier(Modifier::BOLD)
+            ),
+        ]),
+        Line::from(alloc::vec![
+            Span::styled("TX pps/tot : ", Style::default().fg(TXT)),
+            Span::styled(
+                alloc::format!("{} / {}", tx_pps, tx_total),
+                Style::default().fg(HI).add_modifier(Modifier::BOLD)
+            ),
+        ]),
+    ];
+
+    let p = Paragraph::new(lines).block(panel("Emitter (TX only)"));
     f.render_widget(p, area);
 }

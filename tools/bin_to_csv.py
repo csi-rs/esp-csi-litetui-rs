@@ -24,11 +24,17 @@ postcard wire format used here:
 import csv
 import sys
 
-# RxCSIFmt variants in declaration order (the index postcard stores).
+# RxCSIFmt variants in declaration order (the index postcard stores). The order
+# is load-bearing — it must match the upstream enum and `src/config.rs`'s
+# `fmt_label` table — so never reorder it.
+# This matches the current upstream enum: 15 variants, Undefined at 14. Older
+# firmware layouts placed Undefined at 13 (no VhtBw20) or at 16 (two extra
+# formats ahead of it), so .BIN files from those builds will decode this column
+# wrongly — check which firmware wrote a capture before trusting data_format.
 FMT = [
     "Bw20", "HtBw20", "HtBw20Stbc", "SecbBw20", "SecbHtBw20", "SecbHtBw20Stbc",
     "SecbHtBw40", "SecbHtBw40Stbc", "SecaBw20", "SecaHtBw20", "SecaHtBw20Stbc",
-    "SecaHtBw40", "SecaHtBw40Stbc", "Undefined",
+    "SecaHtBw40", "SecaHtBw40Stbc", "VhtBw20", "Undefined",
 ]
 
 COLS = [

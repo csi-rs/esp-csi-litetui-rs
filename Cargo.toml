@@ -4,12 +4,17 @@ version = "0.2.0"
 edition = "2024"
 description = "Handheld Wi-Fi CSI scope for the M5Stack CoreS3 SE (ESP32-S3)"
 license = "Apache-2.0"
+repository = "https://github.com/csi-rs/esp-csi-litetui-rs"
+readme = "README.md"
+keywords = ["esp32", "wifi", "csi", "embedded", "no-std"]
+categories = ["embedded", "no-std"]
+publish = false
 
 [dependencies]
 # --- CSI driver (pins the whole esp-* ecosystem below) ---
-esp-csi-rs = { version = "0.7.0", features = ["esp32s3", "statistics"] }
+esp-csi-rs = { version = "0.11", features = ["esp32s3", "statistics"] }
 
-# --- Core HAL / runtime / radio (versions matched to esp-csi-rs 0.7.0) ---
+# --- Core HAL / runtime / radio (versions matched to esp-csi-rs 0.11) ---
 esp-hal = { version = "1.1", features = ["esp32s3", "unstable"] }
 esp-rtos = { version = "0.3.0", features = ["embassy", "esp32s3", "esp-radio"] }
 esp-radio = { version = "0.18.0", default-features = false, features = [
@@ -17,7 +22,6 @@ esp-radio = { version = "0.18.0", default-features = false, features = [
     "wifi",
     "sniffer",
     "csi",
-    "esp-now",
     "esp-alloc",
     "unstable",
 ] }
@@ -55,6 +59,13 @@ libm = "0.2.16"
 # Force no-std on transitive crates that can otherwise pull in std.
 either = { version = "1.15.0", default-features = false }
 castaway = { version = "0.2.4", default-features = false }
+
+# esp-csi-rs 0.11 (the node model) is not on crates.io yet. Drop this once it publishes.
+#
+# `esp-csi-rs-core` is gone from here: that crate was deprecated and folded back into `esp-csi-rs`,
+# so patching it pinned a dependency this build no longer has.
+[patch.crates-io]
+esp-csi-rs = { path = "../esp-csi-rs" }
 
 [profile.dev]
 opt-level = "s"

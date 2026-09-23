@@ -20,8 +20,9 @@
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicI32, AtomicU16, AtomicU32, AtomicU8, AtomicUsize, Ordering};
 
-/// Number of subcarrier bins the UI tracks (covers HT20 CSI tone count).
-pub const NUM_SUBCARRIERS: usize = 64;
+/// Number of subcarrier bins the UI tracks (covers the ~117–128 HT40 CSI tone
+/// count; HT20 captures fill the first ~53–64 bins and zero the rest).
+pub const NUM_SUBCARRIERS: usize = 128;
 
 // ---------------------------------------------------------------------------
 // Live per-subcarrier view (core 0 -> core 1)
@@ -52,6 +53,8 @@ pub static SIG_MODE: AtomicU8 = AtomicU8::new(0);
 pub static RATE: AtomicU16 = AtomicU16::new(0);
 pub static SEQUENCE: AtomicU16 = AtomicU16::new(0);
 pub static CSI_LEN: AtomicU16 = AtomicU16::new(0);
+/// Last packet's `RxCSIFmt` discriminant (14 = Undefined; see `config::fmt_label`).
+pub static DATA_FORMAT: AtomicU8 = AtomicU8::new(14);
 /// Total CSI packets observed by the drain task (monotonic).
 pub static PACKET_COUNT: AtomicUsize = AtomicUsize::new(0);
 
@@ -60,7 +63,10 @@ pub static PACKET_COUNT: AtomicUsize = AtomicUsize::new(0);
 // ---------------------------------------------------------------------------
 
 /// Selected node mode: `0` = unset, `1` = station, `2` = sniffer,
-/// `3` = ESP-NOW central, `4` = ESP-NOW peripheral.
+/// `7` = AP collector, `8` = HT20 emitter, `9` = HT40 emitter,
+/// `10` = ESP-NOW central, `11` = ESP-NOW peripheral, `12` = simplex source,
+/// `13` = simplex peer. Values `3`–`6` are retired ESP-NOW modes and never
+/// resolve (see [`crate::config::NodeMode`]).
 pub static MODE: AtomicU8 = AtomicU8::new(0);
 
 /// Run state machine:
@@ -75,10 +81,12 @@ pub const RUN_DISCARDED: u8 = 4;
 
 /// Configured primary Wi-Fi channel (1..=14).
 pub static CHANNEL: AtomicU8 = AtomicU8::new(1);
-/// ESP-NOW / station traffic-generation frequency in Hz.
+/// Station / AP traffic-generation frequency in Hz; also the emitter's frame
+/// injection rate.
 pub static TRAFFIC_HZ: AtomicU16 = AtomicU16::new(100);
-/// Selected ESP-NOW PHY rate, as an index into `config::RATE_OPTIONS`.
-pub static RATE_SEL: AtomicU8 = AtomicU8::new(4);
+/// HT40 secondary channel: `0` = off (HT20), `1` = above, `2` = below the
+/// primary. Used by the AP collector and the HT40 emitter.
+pub static HT40_SEL: AtomicU8 = AtomicU8::new(0);
 /// CSI sub-config bit flags (see [`crate::config`]).
 pub static CSI_FLAGS: AtomicU8 = AtomicU8::new(0x0F);
 /// Manual scaling shift (0..=15), only meaningful when the manual-scale flag is set.

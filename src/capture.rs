@@ -23,7 +23,7 @@ use crate::shared::{self, NUM_SUBCARRIERS};
 
 /// CSV header written once when a CSV capture file is opened.
 pub const CSV_HEADER: &str =
-    "host_ms,seq,mac,rssi,noise,rate,mcs,bw,sig_mode,sgi,stbc,fec,ant,channel,sec_ch,csi_len,csi\n";
+    "host_ms,seq,mac,rssi,noise,rate,mcs,bw,sig_mode,sgi,stbc,fec,ant,channel,sec_ch,fmt,csi_len,csi\n";
 
 /// Update the live per-subcarrier + metadata atomics from a packet.
 ///
@@ -40,6 +40,7 @@ pub fn update_live(p: &CSIDataPacket) {
     shared::RATE.store(p.rate as u16, Ordering::Relaxed);
     shared::SEQUENCE.store(p.sequence_number, Ordering::Relaxed);
     shared::CSI_LEN.store(p.csi_data_len, Ordering::Relaxed);
+    shared::DATA_FORMAT.store(p.data_format.clone() as u8, Ordering::Relaxed);
 
     let raw = p.csi_data();
     let n = core::cmp::min(raw.len() / 2, NUM_SUBCARRIERS);
@@ -99,7 +100,7 @@ async fn wait_for_stop() {
 }
 
 // Single-producer scratch: only `run_drain` (one task) ever touches it.
-const SCRATCH_LEN: usize = 3400;
+const SCRATCH_LEN: usize = 3520;
 static mut SCRATCH: [u8; SCRATCH_LEN] = [0u8; SCRATCH_LEN];
 
 fn push_record(p: &CSIDataPacket, fmt: LogFormat) {
@@ -146,7 +147,7 @@ fn format_csv(p: &CSIDataPacket, buf: &mut [u8]) -> usize {
     let mut w = SliceWriter { buf, pos: 0 };
     let _ = write!(
         &mut w,
-        "{},{},{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X},{},{},{},{},{},{},{},{},{},{},{},{},[",
+        "{},{},{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X},{},{},{},{},{},{},{},{},{},{},{},{},{},[",
         host_ms,
         p.sequence_number,
         m[0], m[1], m[2], m[3], m[4], m[5],
@@ -162,6 +163,7 @@ fn format_csv(p: &CSIDataPacket, buf: &mut [u8]) -> usize {
         p.antenna,
         p.channel,
         p.secondary_channel,
+        crate::config::fmt_label(p.data_format.clone() as u8),
     );
     let _ = write!(&mut w, "{},", p.csi_data_len);
     let data = p.csi_data();
